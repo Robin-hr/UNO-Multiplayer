@@ -4,7 +4,7 @@ import { Users, Play, LogIn, Plus, Copy, CheckCircle2, User as UserIcon, Bot, Gl
 import { motion, AnimatePresence } from 'framer-motion';
 import GameBoard from './components/GameBoard';
 
-const socket = io('http://localhost:3002');
+const socket = io(); // Connects to the same host that serves the page
 
 const COLORS = { red: '#dc2626', blue: '#2563eb', green: '#16a34a', yellow: '#ca8a04', black: '#18181b' };
 
