@@ -89,6 +89,19 @@ io.on('connection', (socket) => {
     socket.emit('room_created', { roomId, players: [player, bot] });
   });
 
+  socket.on('join_room', ({ roomId, playerName }) => {
+    const room = rooms.get(roomId);
+    if (!room) return socket.emit('error', 'Room not found');
+    if (room.gameStarted) return socket.emit('error', 'Game already started');
+    if (room.players.length >= 8) return socket.emit('error', 'Room is full');
+
+    const player = { id: socket.id, name: playerName, host: false };
+    room.players.push(player);
+    socket.join(roomId);
+    socket.emit('joined_room', { roomId, players: room.players });
+    socket.to(roomId).emit('player_joined', { players: room.players });
+  });
+
   socket.on('start_game', ({ roomId }) => {
     const room = rooms.get(roomId);
     if (!room || room.players[0].id !== socket.id) return;
