@@ -203,14 +203,9 @@ io.on('connection', (socket) => {
     if (cardIndex === -1) return;
     const card = playerHand[cardIndex];
 
-    // --- STACKING RULE CHECK ---
+    // Official Rules: No Stacking.
     if (gameState.pendingDraws > 0) {
-      const isStackingPlus2 = gameState.topCard.value === 'draw2' && card.value === 'draw2';
-      const isStackingPlus4 = card.value === 'wild4'; // +4 can be played on +2 or +4
-      
-      if (!isStackingPlus2 && !isStackingPlus4) {
-        return socket.emit('error', `You must play a +2 or +4 to stack, or draw ${gameState.pendingDraws} cards!`);
-      }
+      return socket.emit('error', 'You must draw cards!');
     }
 
     if (isValidMove(card, gameState.topCard)) {
@@ -311,17 +306,23 @@ io.on('connection', (socket) => {
       else gameState.direction *= -1;
     }
     
-    // Add to stack instead of drawing immediately
-    if (card.value === 'draw2') {
-      gameState.pendingDraws += 2;
-    }
-    if (card.value === 'wild4') {
-      gameState.pendingDraws += 4;
-    }
-
-    gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
-    if (skipNext) {
+    // Official Rules: Draw and Skip
+    if (card.value === 'draw2' || card.value === 'wild4') {
+      const penalty = card.value === 'draw2' ? 2 : 4;
+      const nextPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
+      const nextPlayerId = room.players[nextPlayerIndex].id;
+      
+      // Force draw
+      for (let i = 0; i < penalty; i++) drawCardForPlayer(room, nextPlayerId);
+      
+      // Skip their turn
+      gameState.currentPlayerIndex = (nextPlayerIndex + gameState.direction + room.players.length) % room.players.length;
+    } else {
+      // Normal turn advancement
       gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
+      if (skipNext) {
+        gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
+      }
     }
     
     // We don't call resetTurnTimer here because it's usually called after handleSpecialEffects
@@ -349,18 +350,7 @@ io.on('connection', (socket) => {
     const playerId = room.players[gameState.currentPlayerIndex].id;
     const hand = gameState.hands[playerId];
 
-    // 1. Try to find any valid card to play
-    let validCardIndex = -1;
-    if (gameState.pendingDraws > 0) {
-      // Must stack or draw
-      validCardIndex = hand.findIndex(c => {
-        const isStackingPlus2 = gameState.topCard.value === 'draw2' && c.value === 'draw2';
-        const isStackingPlus4 = c.value === 'wild4';
-        return isStackingPlus2 || isStackingPlus4;
-      });
-    } else {
-      validCardIndex = hand.findIndex(c => isValidMove(c, gameState.topCard));
-    }
+    validCardIndex = hand.findIndex(c => isValidMove(c, gameState.topCard));
     
     if (validCardIndex !== -1) {
       const card = hand.splice(validCardIndex, 1)[0];
@@ -401,16 +391,7 @@ io.on('connection', (socket) => {
     const botId = room.players[gameState.currentPlayerIndex].id;
     const botHand = gameState.hands[botId];
 
-    let cardToPlay = null;
-    if (gameState.pendingDraws > 0) {
-      cardToPlay = botHand.find(c => {
-        const isStackingPlus2 = gameState.topCard.value === 'draw2' && c.value === 'draw2';
-        const isStackingPlus4 = c.value === 'wild4';
-        return isStackingPlus2 || isStackingPlus4;
-      });
-    } else {
-      cardToPlay = botHand.find(card => isValidMove(card, gameState.topCard));
-    }
+    cardToPlay = botHand.find(card => isValidMove(card, gameState.topCard));
 
     if (!cardToPlay && gameState.pendingDraws === 0) {
       const drawn = drawCardForPlayer(room, botId);
