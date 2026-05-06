@@ -6,6 +6,9 @@ services:
       - "3002:3002"
     environment:
       - PORT=3002
+      - MONGO_URI=mongodb://mongodb:27017/uno_db
+    depends_on:
+      - mongodb
     restart: always
 
   client:
@@ -16,3 +19,14 @@ services:
     depends_on:
       - server
     restart: always
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: always
+
+volumes:
+  mongodb_data:

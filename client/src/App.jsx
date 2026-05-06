@@ -3,6 +3,7 @@ import io from 'socket.io-client';
 import { Users, Play, LogIn, Plus, Copy, CheckCircle2, User as UserIcon, Bot, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GameBoard from './components/GameBoard';
+import Login from './components/Login';
 
 const socket = io(); // Connects to the same host that serves the page
 
@@ -148,7 +149,7 @@ const s = {
 };
 
 export default function App() {
-  const [playerName, setPlayerName] = useState('');
+  const [user, setUser] = useState(null);
   const [roomIdInput, setRoomIdInput] = useState('');
   const [roomData, setRoomData] = useState(null);
   const [gameState, setGameState] = useState(null);
@@ -158,6 +159,9 @@ export default function App() {
   const [view, setView] = useState('home');
 
   useEffect(() => {
+    const savedUser = localStorage.getItem('uno_user');
+    if (savedUser) setUser(JSON.parse(savedUser));
+
     socket.on('room_created', ({ roomId, players }) => { setRoomData({ roomId, players }); setIsJoined(true); });
     socket.on('joined_room', ({ roomId, players }) => { setRoomData({ roomId, players }); setIsJoined(true); });
     socket.on('player_joined', ({ players }) => setRoomData(p => ({ ...p, players })));
@@ -168,12 +172,13 @@ export default function App() {
   }, []);
 
   const err = (msg) => { setError(msg); setTimeout(() => setError(''), 3000); };
-  const handleSolo = () => { if (!playerName.trim()) return err('Enter your name first'); socket.emit('create_solo_room', { playerName }); };
-  const handleCreate = () => { if (!playerName.trim()) return err('Enter your name first'); socket.emit('create_room', { playerName }); };
-  const handleJoin = () => { if (!playerName.trim() || !roomIdInput.trim()) return err('Name and Room ID required'); socket.emit('join_room', { roomId: roomIdInput.toUpperCase(), playerName }); };
+  const handleSolo = () => socket.emit('create_solo_room', { playerName: user.username });
+  const handleCreate = () => socket.emit('create_room', { playerName: user.username });
+  const handleJoin = () => { if (!roomIdInput.trim()) return err('Room ID required'); socket.emit('join_room', { roomId: roomIdInput.toUpperCase(), playerName: user.username }); };
   const handleStart = () => socket.emit('start_game', { roomId: roomData.roomId });
   const copyId = () => { navigator.clipboard.writeText(roomData.roomId); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
+  if (!user) return <Login onLogin={setUser} />;
   if (gameState) return <GameBoard gameState={gameState} socket={socket} roomId={roomData.roomId} />;
 
   /* ── LOBBY ── */
@@ -257,14 +262,12 @@ export default function App() {
         <p style={s.subtitle}>The Ultimate Multiplayer Card Game</p>
 
         <div style={s.card}>
-          <label style={s.label}>Your Name</label>
-          <input
-            style={s.input}
-            placeholder="Enter your name…"
-            value={playerName}
-            onChange={e => setPlayerName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSolo()}
-          />
+          <div style={{ marginBottom: 24, textAlign: 'center' }}>
+            <div style={{ ...s.label, marginBottom: 4 }}>PLAYER SESSION</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: '#60a5fa', letterSpacing: 1, textTransform: 'uppercase' }}>
+              {user.username}
+            </div>
+          </div>
 
           <div style={{ display: 'flex', gap: 12, marginBottom: 0 }}>
             <button style={s.btnSolo} onClick={handleSolo}

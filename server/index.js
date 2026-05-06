@@ -2,17 +2,69 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { createDeck, dealCards, isValidMove, shuffle } from './gameLogic.js';
 
 const app = express();
 app.use(cors());
+app.use(express.json());
+
+const PORT = process.env.PORT || 3001;
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://mongodb:27017/uno_db';
+const JWT_SECRET = 'uno_super_secret_key';
+
+// MongoDB Connection
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err));
+
+// User Model
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  wins: { type: Number, default: 0 }
+});
+const User = mongoose.model('User', userSchema);
+
+// Auth Routes
+app.post('/auth/register', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ message: 'Missing fields' });
+    const existingUser = await User.findOne({ username });
+    if (existingUser) return res.status(400).json({ message: 'Username already taken' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ username, password: hashedPassword });
+    await newUser.save();
+    res.status(201).json({ message: 'User registered successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error registering user' });
+  }
+});
+
+app.post('/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const user = await User.findOne({ username });
+    if (!user) return res.status(400).json({ message: 'User not found' });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+
+    const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, username: user.username });
+  } catch (err) {
+    res.status(500).json({ message: 'Error logging in' });
+  }
+});
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
-
-const PORT = process.env.PORT || 3001;
 const rooms = new Map();
 
 // ── Point values ──────────────────────────────────────────────────────────────
