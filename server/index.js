@@ -350,7 +350,17 @@ io.on('connection', (socket) => {
     const hand = gameState.hands[playerId];
 
     // 1. Try to find any valid card to play
-    const validCardIndex = hand.findIndex(c => isValidMove(c, gameState.topCard));
+    let validCardIndex = -1;
+    if (gameState.pendingDraws > 0) {
+      // Must stack or draw
+      validCardIndex = hand.findIndex(c => {
+        const isStackingPlus2 = gameState.topCard.value === 'draw2' && c.value === 'draw2';
+        const isStackingPlus4 = c.value === 'wild4';
+        return isStackingPlus2 || isStackingPlus4;
+      });
+    } else {
+      validCardIndex = hand.findIndex(c => isValidMove(c, gameState.topCard));
+    }
     
     if (validCardIndex !== -1) {
       const card = hand.splice(validCardIndex, 1)[0];
@@ -391,9 +401,18 @@ io.on('connection', (socket) => {
     const botId = room.players[gameState.currentPlayerIndex].id;
     const botHand = gameState.hands[botId];
 
-    let cardToPlay = botHand.find(card => isValidMove(card, gameState.topCard));
+    let cardToPlay = null;
+    if (gameState.pendingDraws > 0) {
+      cardToPlay = botHand.find(c => {
+        const isStackingPlus2 = gameState.topCard.value === 'draw2' && c.value === 'draw2';
+        const isStackingPlus4 = c.value === 'wild4';
+        return isStackingPlus2 || isStackingPlus4;
+      });
+    } else {
+      cardToPlay = botHand.find(card => isValidMove(card, gameState.topCard));
+    }
 
-    if (!cardToPlay) {
+    if (!cardToPlay && gameState.pendingDraws === 0) {
       const drawn = drawCardForPlayer(room, botId);
       if (isValidMove(drawn, gameState.topCard)) cardToPlay = drawn;
     }
