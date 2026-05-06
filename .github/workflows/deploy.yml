@@ -64,5 +64,12 @@ jobs:
           debug: true
           script: |
             cd ~/uno-app
-            sudo docker compose pull
-            sudo docker compose up -d --remove-orphans
+            # Check if docker-compose V2 is available, otherwise use V1
+            if docker compose version > /dev/null 2>&1; then
+              DOCKER_COMPOSE="docker compose"
+            else
+              DOCKER_COMPOSE="docker-compose"
+            fi
+            
+            sudo $DOCKER_COMPOSE pull
+            sudo $DOCKER_COMPOSE up -d --remove-orphans
