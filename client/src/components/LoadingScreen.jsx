@@ -17,7 +17,8 @@ const LoadingScreen = () => {
             background: 'linear-gradient(135deg, #fff 0%, #fca5a5 40%, #ef4444 100%)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
             filter: 'drop-shadow(0 0 30px rgba(239,68,68,0.8))',
-            position: 'relative', zIndex: 10
+            position: 'relative', zIndex: 10,
+            padding: '0 20px', display: 'inline-block'
         },
         subtitle: {
             color: 'rgba(255,255,255,0.4)', fontSize: '14px', fontWeight: 800,

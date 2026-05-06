@@ -43,6 +43,7 @@ const s = {
     WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
     backgroundClip: 'text', textAlign: 'center',
     filter: 'drop-shadow(0 0 30px rgba(239,68,68,0.6))',
+    padding: '0 20px', display: 'inline-block'
   },
   subtitle: {
     textAlign: 'center', fontSize: 12, fontWeight: 700,
