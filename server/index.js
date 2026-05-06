@@ -160,7 +160,7 @@ io.on('connection', (socket) => {
 
     const deck = createDeck();
     const { hands, remainingDeck } = dealCards(deck, room.players);
-    let topCardIndex = remainingDeck.findIndex(c => c.value !== 'wild4' && c.value !== 'wildSwap' && c.value !== 'wildShuffle');
+    let topCardIndex = remainingDeck.findIndex(c => c.value !== 'wild4');
     const topCard = remainingDeck.splice(topCardIndex, 1)[0];
     
     // Initial Action Handling
@@ -289,25 +289,6 @@ io.on('connection', (socket) => {
     checkBotTurn(roomId);
   });
 
-  socket.on('swap_hands', ({ roomId, targetPlayerId }) => {
-    const room = rooms.get(roomId);
-    if (!room || !room.gameStarted) return;
-    const gameState = room.gameState;
-    if (room.players[gameState.currentPlayerIndex].id !== socket.id) return;
-
-    // Swap logic
-    const myHand = [...gameState.hands[socket.id]];
-    const targetHand = [...gameState.hands[targetPlayerId]];
-    gameState.hands[socket.id] = targetHand;
-    gameState.hands[targetPlayerId] = myHand;
-
-    // Advance turn
-    gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
-    
-    updateAllPlayers(roomId);
-    checkBotTurn(roomId);
-  });
-
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
   function drawCardForPlayer(room, playerId) {
@@ -336,35 +317,6 @@ io.on('connection', (socket) => {
     }
     if (card.value === 'wild4') {
       gameState.pendingDraws += 4;
-    }
-
-    if (card.value === 'wildShuffle') {
-      // Collect all cards
-      let allCards = [];
-      room.players.forEach(p => {
-        allCards.push(...gameState.hands[p.id]);
-        gameState.hands[p.id] = [];
-      });
-      // Shuffle them
-      for (let i = allCards.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [allCards[i], allCards[j]] = [allCards[j], allCards[i]];
-      }
-      // Redistribute
-      let pIdx = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
-      while (allCards.length > 0) {
-        gameState.hands[room.players[pIdx].id].push(allCards.pop());
-        pIdx = (pIdx + gameState.direction + room.players.length) % room.players.length;
-      }
-    }
-
-    if (card.value === 'wildSwap') {
-      // We need to tell the client to pick a player to swap with
-      io.to(socket.id).emit('pick_swap_target', { 
-        players: room.players.filter(p => p.id !== socket.id).map(p => ({ id: p.id, name: p.name })) 
-      });
-      // Note: We don't advance the turn yet. The 'swap_hands' event will do it.
-      return; 
     }
 
     gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
