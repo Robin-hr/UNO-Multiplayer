@@ -6,7 +6,7 @@ import GameBoard from './components/GameBoard';
 import Login from './components/Login';
 import LoadingScreen from './components/LoadingScreen';
 
-const socket = io(); // Connects to the same host that serves the page
+const socket = io();
 
 const COLORS = { red: '#dc2626', blue: '#2563eb', green: '#16a34a', yellow: '#ca8a04', black: '#18181b' };
 
@@ -151,7 +151,6 @@ const s = {
 
 export default function App() {
   const [loading, setLoading] = useState(true);
-  const [socketConnected, setSocketConnected] = useState(false);
   const [user, setUser] = useState(null);
   const [roomIdInput, setRoomIdInput] = useState('');
   const [roomData, setRoomData] = useState(null);
@@ -162,17 +161,13 @@ export default function App() {
   const [view, setView] = useState('home');
 
   useEffect(() => {
-    window.onerror = (msg, url, line) => {
-      alert(`Error: ${msg}\nLine: ${line}\nURL: ${url}`);
-    };
-
     setTimeout(() => setLoading(false), 3000);
-    
-    socket.on('connect', () => setSocketConnected(true));
-    socket.on('disconnect', () => setSocketConnected(false));
 
     const savedUser = localStorage.getItem('uno_user');
     if (savedUser) setUser(JSON.parse(savedUser));
+
+    socket.on('connect', () => {}); // placeholder
+    socket.on('disconnect', () => {}); // placeholder
 
     socket.on('room_created', ({ roomId, players }) => { setRoomData({ roomId, players }); setIsJoined(true); });
     socket.on('joined_room', ({ roomId, players }) => { setRoomData({ roomId, players }); setIsJoined(true); });
@@ -194,11 +189,6 @@ export default function App() {
 
   return (
     <AnimatePresence mode="wait">
-      {/* Connection Status Dot */}
-      <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 10000, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', fontWeight: 900, color: 'rgba(255,255,255,0.3)', letterSpacing: '1px' }}>
-        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: socketConnected ? '#22c55e' : '#ef4444', boxShadow: socketConnected ? '0 0 10px #22c55e' : '0 0 10px #ef4444' }} />
-        {socketConnected ? 'SERVER ONLINE' : 'SERVER OFFLINE'}
-      </div>
 
       {loading ? (
         <LoadingScreen key="loading" />
