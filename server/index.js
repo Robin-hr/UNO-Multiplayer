@@ -133,6 +133,7 @@ io.on('connection', (socket) => {
 
     updateAllPlayers(roomId);
     startGameTimer(roomId);   // ← start 5-minute clock
+    startTurnTimer(roomId);   // ← NEW: start 10-second turn timer
     checkBotTurn(roomId);
   });
 
@@ -167,6 +168,7 @@ io.on('connection', (socket) => {
       }
       gameState.topCard = card;
       gameState.playedCards.push(card);
+      resetTurnTimer(roomId); // Reset timer on successful play
       handleSpecialEffects(room, card);
 
       if (playerHand.length === 0) {
@@ -230,6 +232,7 @@ io.on('connection', (socket) => {
       }
     }
 
+    resetTurnTimer(roomId); // Reset timer on draw
     updateAllPlayers(roomId);
     checkBotTurn(roomId);
   });
@@ -316,6 +319,58 @@ io.on('connection', (socket) => {
     if (skipNext) {
       gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
     }
+    
+    // We don't call resetTurnTimer here because it's usually called after handleSpecialEffects
+  }
+
+  function startTurnTimer(roomId) {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    
+    if (room.turnTimer) clearTimeout(room.turnTimer);
+    
+    room.turnTimer = setTimeout(() => {
+      if (room.gameStarted) performAutoMove(roomId);
+    }, 11000); // 11s to give a bit of buffer
+  }
+
+  function resetTurnTimer(roomId) {
+    startTurnTimer(roomId);
+  }
+
+  function performAutoMove(roomId) {
+    const room = rooms.get(roomId);
+    if (!room || !room.gameStarted) return;
+    const gameState = room.gameState;
+    const playerId = room.players[gameState.currentPlayerIndex].id;
+    const hand = gameState.hands[playerId];
+
+    // 1. Try to find any valid card to play
+    const validCardIndex = hand.findIndex(c => isValidMove(c, gameState.topCard));
+    
+    if (validCardIndex !== -1) {
+      const card = hand.splice(validCardIndex, 1)[0];
+      if (card.type === 'wild' || card.value === 'wild4') card.color = ['red','blue','green','yellow'][Math.floor(Math.random()*4)];
+      gameState.topCard = card;
+      gameState.playedCards.push(card);
+      handleSpecialEffects(room, card);
+    } else {
+      // 2. If no valid card, draw
+      if (gameState.pendingDraws > 0) {
+        for (let i = 0; i < gameState.pendingDraws; i++) drawCardForPlayer(room, playerId);
+        gameState.pendingDraws = 0;
+        gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
+      } else {
+        const drawn = drawCardForPlayer(room, playerId);
+        if (!isValidMove(drawn, gameState.topCard)) {
+          gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
+        }
+      }
+    }
+
+    updateAllPlayers(roomId);
+    startTurnTimer(roomId); // Start timer for next player
+    checkBotTurn(roomId);
   }
 
   function checkBotTurn(roomId) {

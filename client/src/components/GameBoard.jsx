@@ -25,12 +25,21 @@ const GameBoard = ({ gameState, socket, roomId }) => {
   const [unoCountdown, setUnoCountdown] = useState(2);
   const [unoNotif, setUnoNotif] = useState(null);
   const [swapOptions, setSwapOptions] = useState(null);
+  const [turnTimeRemaining, setTurnTimeRemaining] = useState(10);
   
   const unoTimerRef = useRef(null);
   const unoCountRef = useRef(null);
 
   const { topCard, currentPlayerId, hand = [], playerCounts = [] } = gameState || {};
   const isMyTurn = currentPlayerId === socket.id;
+
+  useEffect(() => {
+    setTurnTimeRemaining(10);
+    const interval = setInterval(() => {
+      setTurnTimeRemaining(prev => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [currentPlayerId]);
 
   useEffect(() => {
     socket.on('game_over', ({ winner, byPoints, scores }) => {
@@ -264,6 +273,11 @@ const GameBoard = ({ gameState, socket, roomId }) => {
               }}>
                 {player.id.includes('bot') ? <Bot size={40} color="#c084fc" /> : <User size={40} color="#94a3b8" />}
                 <div style={{ position: 'absolute', top: -10, right: -10, background: 'white', color: 'black', fontWeight: 900, fontSize: '12px', padding: '2px 8px', borderRadius: '6px' }}>{player.count}</div>
+                {isActive && (
+                  <div style={{ position: 'absolute', bottom: -10, left: '50%', transform: 'translateX(-50%)', background: '#f87171', color: 'white', fontWeight: 900, fontSize: '10px', padding: '2px 6px', borderRadius: '4px', boxShadow: '0 0 10px rgba(248,113,113,0.5)' }}>
+                    {turnTimeRemaining}s
+                  </div>
+                )}
               </div>
               <div style={{ marginTop: '10px', fontSize: '13px', fontWeight: 800, background: 'rgba(0,0,0,0.4)', padding: '4px 10px', borderRadius: '8px' }}>{player.name}</div>
             </div>
@@ -298,6 +312,11 @@ const GameBoard = ({ gameState, socket, roomId }) => {
           }}>
             <User size={48} color="#60a5fa" />
             <div style={{ position: 'absolute', top: -12, right: -12, background: 'white', color: 'black', fontWeight: 900, fontSize: '14px', padding: '4px 10px', borderRadius: '8px' }}>{hand.length}</div>
+            {isMyTurn && (
+              <div style={{ position: 'absolute', bottom: -12, left: '50%', transform: 'translateX(-50%)', background: '#f87171', color: 'white', fontWeight: 900, fontSize: '12px', padding: '2px 8px', borderRadius: '6px', boxShadow: '0 0 15px rgba(248,113,113,0.6)' }}>
+                {turnTimeRemaining}s
+              </div>
+            )}
           </div>
           <div style={{ marginTop: '12px', fontSize: '14px', fontWeight: 800, background: 'rgba(255,255,255,0.1)', padding: '5px 14px', borderRadius: '10px' }}>{myInfo?.name || 'You'}</div>
         </div>
