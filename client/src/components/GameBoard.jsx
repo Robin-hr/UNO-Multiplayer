@@ -35,6 +35,43 @@ const GameBoard = ({ gameState, socket, roomId }) => {
   const { topCard, currentPlayerId, hand = [], playerCounts = [], pendingDraws = 0 } = gameState || {};
   const isMyTurn = currentPlayerId === socket.id;
 
+  const isLowTime = timeRemaining <= 60000;
+
+  const styles = {
+    scene: {
+      position: 'fixed', inset: 0,
+      background: 'radial-gradient(circle at center, #450a0a 0%, #1a0000 70%, #000 100%)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      perspective: '1500px', overflow: 'hidden', fontFamily: "'Nunito', sans-serif"
+    },
+    table: {
+      position: 'absolute', width: '1100px', height: '650px',
+      background: 'radial-gradient(ellipse at center, rgba(239, 68, 68, 0.1) 0%, transparent 80%)',
+      borderRadius: '50%', transform: 'rotateX(60deg) translateY(60px)',
+      border: '2px solid rgba(255, 255, 255, 0.03)',
+      boxShadow: '0 0 120px rgba(0,0,0,0.9), inset 0 0 40px rgba(0,0,0,0.5)',
+      zIndex: 1
+    },
+    timer: {
+      position: 'fixed', top: '30px', right: '30px', zIndex: 500,
+      background: isLowTime ? 'rgba(239,68,68,0.2)' : 'rgba(0,0,0,0.4)',
+      backdropFilter: 'blur(10px)',
+      border: `1.5px solid ${isLowTime ? '#ef4444' : 'rgba(255,255,255,0.1)'}`,
+      borderRadius: '16px', padding: '10px 22px',
+      display: 'flex', alignItems: 'center', gap: '10px',
+      boxShadow: isLowTime ? '0 0 25px rgba(239,68,68,0.3)' : '0 10px 30px rgba(0,0,0,0.3)',
+      transition: 'all 0.5s'
+    },
+    notif: {
+      position: 'fixed', top: '100px', left: '50%', transform: 'translateX(-50%)',
+      zIndex: 1000, padding: '16px 36px', borderRadius: '50px',
+      fontWeight: 900, fontSize: '20px', letterSpacing: '1px',
+      background: unoNotif?.type === 'success' ? '#22c55e' : '#ef4444',
+      color: 'white', boxShadow: '0 15px 40px rgba(0,0,0,0.5)',
+      display: 'flex', alignItems: 'center', gap: '10px'
+    }
+  };
+
   useEffect(() => {
     setTurnTimeRemaining(10);
     const interval = setInterval(() => {
@@ -42,6 +79,17 @@ const GameBoard = ({ gameState, socket, roomId }) => {
     }, 1000);
     return () => clearInterval(interval);
   }, [currentPlayerId]);
+
+  // Reset internal states when a new round starts
+  useEffect(() => {
+    if (gameState && gameState.playedCards?.length === 1) {
+      setWinner(null);
+      setScores([]);
+      setRoundPoints(0);
+      setIsFinalWin(false);
+      setTurnTimeRemaining(10);
+    }
+  }, [gameState?.topCard?.id]);
 
   useEffect(() => {
     socket.on('game_over', ({ winner, final, scores }) => {
@@ -142,43 +190,12 @@ const GameBoard = ({ gameState, socket, roomId }) => {
   };
 
   // --- Styles ---
-  const s = {
-    scene: {
-      position: 'fixed', inset: 0,
-      background: 'radial-gradient(circle at center, #450a0a 0%, #1a0000 70%, #000 100%)',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      perspective: '1500px', overflow: 'hidden', fontFamily: "'Nunito', sans-serif"
-    },
-    table: {
-      position: 'absolute', width: '1100px', height: '650px',
-      background: 'radial-gradient(ellipse at center, rgba(239, 68, 68, 0.1) 0%, transparent 80%)',
-      borderRadius: '50%', transform: 'rotateX(60deg) translateY(60px)',
-      border: '2px solid rgba(255, 255, 255, 0.03)',
-      boxShadow: '0 0 120px rgba(0,0,0,0.9), inset 0 0 40px rgba(0,0,0,0.5)',
-      zIndex: 1
-    },
-    timer: {
-      position: 'fixed', top: '30px', right: '30px', zIndex: 500,
-      background: isLowTime ? 'rgba(239,68,68,0.2)' : 'rgba(0,0,0,0.4)',
-      backdropFilter: 'blur(10px)',
-      border: `1.5px solid ${isLowTime ? '#ef4444' : 'rgba(255,255,255,0.1)'}`,
-      borderRadius: '16px', padding: '10px 22px',
-      display: 'flex', alignItems: 'center', gap: '10px',
-      boxShadow: isLowTime ? '0 0 25px rgba(239,68,68,0.3)' : '0 10px 30px rgba(0,0,0,0.3)',
-      transition: 'all 0.5s'
-    },
-    notif: {
-      position: 'fixed', top: '100px', left: '50%', transform: 'translateX(-50%)',
-      zIndex: 1000, padding: '16px 36px', borderRadius: '50px',
-      fontWeight: 900, fontSize: '20px', letterSpacing: '1px',
-      background: unoNotif?.type === 'success' ? '#22c55e' : '#ef4444',
-      color: 'white', boxShadow: '0 15px 40px rgba(0,0,0,0.5)',
-      display: 'flex', alignItems: 'center', gap: '10px'
-    }
   };
 
+  const s = styles;
+
   if (winner) {
-    const isHost = gameState.playerCounts.find(p => p.id === socket.id)?.host || false; // Approximation
+    const isHost = playerCounts.find(p => p.id === socket.id)?.host || false;
     // Better to check if myInfo is host, but let's assume first player in list is host if needed.
     
     return (
@@ -193,15 +210,15 @@ const GameBoard = ({ gameState, socket, roomId }) => {
 
           <div style={{ marginBottom: '40px', textAlign: 'left', background: 'rgba(255,255,255,0.03)', padding: '24px', borderRadius: '24px' }}>
             <h3 style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px', letterSpacing: '2px', fontWeight: 800 }}>ACCUMULATED SCORES</h3>
-            {scores.map((s, i) => (
+            {scores.map((score, i) => (
               <div key={i} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 padding: '14px 20px', marginBottom: '8px', borderRadius: '14px',
                 background: i === 0 ? 'rgba(250,204,21,0.1)' : 'rgba(255,255,255,0.03)',
                 border: i === 0 ? '1px solid rgba(250,204,21,0.3)' : '1px solid transparent'
               }}>
-                <span style={{ fontWeight: 800, fontSize: '18px' }}>{i === 0 ? '👑' : '👤'} {s.name}</span>
-                <span style={{ fontWeight: 900, color: i === 0 ? '#facc15' : '#94a3b8', fontSize: '20px' }}>{s.points} / 500</span>
+                <span style={{ fontWeight: 800, fontSize: '18px' }}>{i === 0 ? '👑' : '👤'} {score.name}</span>
+                <span style={{ fontWeight: 900, color: i === 0 ? '#facc15' : '#94a3b8', fontSize: '20px' }}>{score.points} / 500</span>
               </div>
             ))}
           </div>
@@ -209,8 +226,12 @@ const GameBoard = ({ gameState, socket, roomId }) => {
           <div style={{ display: 'flex', gap: '16px' }}>
             {isFinalWin ? (
               <button className="btn-start" style={{ width: '100%', padding: '20px' }} onClick={() => window.location.reload()}>NEW GAME</button>
-            ) : (
+            ) : isHost ? (
               <button className="btn-start" style={{ width: '100%', padding: '20px' }} onClick={() => socket.emit('start_game', { roomId })}>START NEXT ROUND</button>
+            ) : (
+              <div style={{ width: '100%', padding: '20px', textAlign: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '18px', fontWeight: 800, color: '#94a3b8' }}>
+                WAITING FOR HOST TO START NEXT ROUND...
+              </div>
             )}
           </div>
         </motion.div>
@@ -263,10 +284,12 @@ const GameBoard = ({ gameState, socket, roomId }) => {
         {/* Discard Pile */}
         <div style={{ perspective: '1000px' }}>
           <AnimatePresence mode="wait">
-            <motion.div key={topCard.id} initial={{ y: -400, opacity: 0, rotate: 45 }} animate={{ y: 0, opacity: 1, rotate: 0 }} transition={{ type: 'spring', damping: 15 }} style={{ filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.6))' }}>
-              <Card card={topCard} disabled />
-              <div style={{ position: 'absolute', bottom: '-30px', left: '50%', transform: 'translateX(-50%)', fontSize: '12px', fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '2px', whiteSpace: 'nowrap' }}>DISCARD</div>
-            </motion.div>
+            {topCard && (
+              <motion.div key={topCard.id} initial={{ y: -400, opacity: 0, rotate: 45 }} animate={{ y: 0, opacity: 1, rotate: 0 }} transition={{ type: 'spring', damping: 15 }} style={{ filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.6))' }}>
+                <Card card={topCard} disabled />
+                <div style={{ position: 'absolute', bottom: '-30px', left: '50%', transform: 'translateX(-50%)', fontSize: '12px', fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '2px', whiteSpace: 'nowrap' }}>DISCARD</div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
       </div>
