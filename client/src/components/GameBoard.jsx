@@ -318,13 +318,16 @@ const GameBoard = ({ gameState, socket, roomId }) => {
             {currentPlayerId === player.id && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1.1 }}
+                animate={{ 
+                  opacity: 1, 
+                  scale: 1.1,
+                  boxShadow: ['0 0 20px rgba(239,68,68,0.3)', '0 0 40px rgba(239,68,68,0.6)', '0 0 20px rgba(239,68,68,0.3)'] 
+                }}
                 style={{
                   position: 'absolute', inset: -8, borderRadius: '24px',
                   background: 'radial-gradient(circle, rgba(239,68,68,0.3) 0%, transparent 70%)',
                   boxShadow: '0 0 30px rgba(239,68,68,0.5)', zIndex: -1
                 }}
-                animate={{ boxShadow: ['0 0 20px rgba(239,68,68,0.3)', '0 0 40px rgba(239,68,68,0.6)', '0 0 20px rgba(239,68,68,0.3)'] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
               />
             )}
