@@ -48,6 +48,9 @@ export const isValidMove = (card, topCard) => {
   // Wild cards (Wild and Wild +4) can be played on anything
   if (card.value === 'wild' || card.value === 'wild4') return true;
   
+  // If top card is wild and hasn't had a color picked (e.g. first card of game)
+  if (topCard.color === 'any') return true;
+
   // Normal cards must match color or value
   if (card.color === topCard.color) return true;
   if (card.value === topCard.value) return true;

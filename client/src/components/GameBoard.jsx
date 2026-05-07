@@ -30,7 +30,7 @@ const GameBoard = ({ gameState, socket, roomId }) => {
   const unoTimerRef = useRef(null);
   const unoCountRef = useRef(null);
 
-  const { topCard, currentPlayerId, hand = [], playerCounts = [] } = gameState || {};
+  const { topCard, currentPlayerId, hand = [], playerCounts = [], pendingDraws = 0 } = gameState || {};
   const isMyTurn = currentPlayerId === socket.id;
 
   useEffect(() => {
@@ -235,6 +235,11 @@ const GameBoard = ({ gameState, socket, roomId }) => {
             <Card isBack disabled />
             <div style={{ position: 'absolute', top: '-4px', left: '-4px', width: '90px', height: '140px', background: '#000', border: '4px solid white', borderRadius: '8px', zIndex: -1, opacity: 0.5 }} />
             <div style={{ position: 'absolute', bottom: '-30px', left: '50%', transform: 'translateX(-50%)', fontSize: '12px', fontWeight: 900, color: 'rgba(255,255,255,0.4)', letterSpacing: '2px' }}>DRAW</div>
+            {isMyTurn && pendingDraws > 0 && (
+              <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 1 }} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: '#ef4444', color: 'white', fontWeight: 900, padding: '8px 12px', borderRadius: '12px', fontSize: '14px', whiteSpace: 'nowrap', boxShadow: '0 0 20px rgba(239,68,68,0.6)', zIndex: 200 }}>
+                MUST DRAW +{pendingDraws}
+              </motion.div>
+            )}
           </div>
         </div>
 
@@ -260,14 +265,13 @@ const GameBoard = ({ gameState, socket, roomId }) => {
 
         return (
           <div key={player.id} style={{ position: 'absolute', transform: `translate(${x}px, ${y}px)`, display: 'flex', alignItems: 'center', gap: '20px', zIndex: 10 }}>
-          <div key={p.id} style={{ position: 'absolute', transform: `translate(${x}px, ${y}px)`, display: 'flex', alignItems: 'center', gap: '20px', zIndex: 10 }}>
             {isActive && (
               <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ position: 'absolute', right: '100%', marginRight: '20px', background: '#3b82f6', color: 'white', fontWeight: 900, padding: '6px 14px', borderRadius: '10px', fontSize: '11px', whiteSpace: 'nowrap', boxShadow: '0 0 20px rgba(59,130,246,0.4)' }}>
                 PLAYING <ArrowRight size={12} style={{ marginLeft: 4 }} />
               </motion.div>
             )}
-            <div key={p.id} style={{ position: 'relative', width: '140px', textAlign: 'center' }}>
-            {gameState.currentPlayerId === p.id && (
+            <div style={{ position: 'relative', width: '140px', textAlign: 'center' }}>
+            {currentPlayerId === player.id && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1.1 }}
@@ -280,7 +284,7 @@ const GameBoard = ({ gameState, socket, roomId }) => {
                 transition={{ duration: 1.5, repeat: Infinity }}
               />
             )}
-            {nextPlayerId === p.id && gameState.currentPlayerId !== p.id && (
+            {nextPlayerId === player.id && currentPlayerId !== player.id && (
               <motion.div
                 animate={{ opacity: [0.1, 0.4, 0.1] }}
                 transition={{ duration: 2, repeat: Infinity }}
@@ -292,13 +296,13 @@ const GameBoard = ({ gameState, socket, roomId }) => {
             )}
             <div style={{
               width: '72px', height: '72px', borderRadius: '20px', background: 'rgba(255,255,255,0.05)',
-              border: `3px solid ${gameState.currentPlayerId === p.id ? '#ef4444' : 'rgba(255,255,255,0.1)'}`,
+              border: `3px solid ${currentPlayerId === player.id ? '#ef4444' : 'rgba(255,255,255,0.1)'}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto',
               position: 'relative', transition: 'all 0.3s',
-              transform: gameState.currentPlayerId === p.id ? 'scale(1.1)' : 'scale(1)'
+              transform: currentPlayerId === player.id ? 'scale(1.1)' : 'scale(1)'
             }}>
-                {p.id.includes('bot') ? <Bot size={40} color="#c084fc" /> : <User size={40} color="#94a3b8" />}
-                <div style={{ position: 'absolute', top: -10, right: -10, background: 'white', color: 'black', fontWeight: 900, fontSize: '12px', padding: '2px 8px', borderRadius: '6px' }}>{p.count}</div>
+                {player.id.includes('bot') ? <Bot size={40} color="#c084fc" /> : <User size={40} color="#94a3b8" />}
+                <div style={{ position: 'absolute', top: -10, right: -10, background: 'white', color: 'black', fontWeight: 900, fontSize: '12px', padding: '2px 8px', borderRadius: '6px' }}>{player.count}</div>
                 {isActive && (
                   <div style={{ position: 'absolute', bottom: -10, left: '50%', transform: 'translateX(-50%)', background: '#f87171', color: 'white', fontWeight: 900, fontSize: '10px', padding: '2px 6px', borderRadius: '4px', boxShadow: '0 0 10px rgba(248,113,113,0.5)' }}>
                     {turnTimeRemaining}s

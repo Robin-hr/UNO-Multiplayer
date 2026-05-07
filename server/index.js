@@ -309,14 +309,10 @@ io.on('connection', (socket) => {
     // Official Rules: Draw and Skip
     if (card.value === 'draw2' || card.value === 'wild4') {
       const penalty = card.value === 'draw2' ? 2 : 4;
-      const nextPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
-      const nextPlayerId = room.players[nextPlayerIndex].id;
+      gameState.pendingDraws = penalty;
       
-      // Force draw
-      for (let i = 0; i < penalty; i++) drawCardForPlayer(room, nextPlayerId);
-      
-      // Skip their turn
-      gameState.currentPlayerIndex = (nextPlayerIndex + gameState.direction + room.players.length) % room.players.length;
+      // Advance to the player who must draw
+      gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
     } else {
       // Normal turn advancement
       gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
@@ -324,8 +320,6 @@ io.on('connection', (socket) => {
         gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
       }
     }
-    
-    // We don't call resetTurnTimer here because it's usually called after handleSpecialEffects
   }
 
   function startTurnTimer(roomId) {
@@ -350,7 +344,7 @@ io.on('connection', (socket) => {
     const playerId = room.players[gameState.currentPlayerIndex].id;
     const hand = gameState.hands[playerId];
 
-    validCardIndex = hand.findIndex(c => isValidMove(c, gameState.topCard));
+    const validCardIndex = hand.findIndex(c => isValidMove(c, gameState.topCard));
     
     if (validCardIndex !== -1) {
       const card = hand.splice(validCardIndex, 1)[0];
@@ -391,7 +385,7 @@ io.on('connection', (socket) => {
     const botId = room.players[gameState.currentPlayerIndex].id;
     const botHand = gameState.hands[botId];
 
-    cardToPlay = botHand.find(card => isValidMove(card, gameState.topCard));
+    let cardToPlay = botHand.find(card => isValidMove(card, gameState.topCard));
 
     if (!cardToPlay && gameState.pendingDraws === 0) {
       const drawn = drawCardForPlayer(room, botId);
@@ -442,6 +436,7 @@ io.on('connection', (socket) => {
         topCard: room.gameState.topCard,
         currentPlayerId: room.players[room.gameState.currentPlayerIndex].id,
         hand: room.gameState.hands[player.id],
+        pendingDraws: room.gameState.pendingDraws,
         playerCounts: room.players.map(p => ({
           id: p.id,
           name: p.name,
@@ -456,13 +451,28 @@ io.on('connection', (socket) => {
     for (const [roomId, room] of rooms.entries()) {
       const idx = room.players.findIndex(p => p.id === socket.id);
       if (idx !== -1) {
+        // Adjust currentPlayerIndex if a player leaves
+        if (room.gameState) {
+          if (idx < room.gameState.currentPlayerIndex) {
+            room.gameState.currentPlayerIndex--;
+          } else if (idx === room.gameState.currentPlayerIndex) {
+            // It was this player's turn, move to next
+            // No need to increment, because splicing shifts everything
+          }
+          if (room.gameState.currentPlayerIndex >= room.players.length - 1) {
+             room.gameState.currentPlayerIndex = 0;
+          }
+        }
+
         room.players.splice(idx, 1);
         if (room.players.filter(p => !p.isBot).length === 0) {
           clearTimeout(room.timer);
           clearInterval(room.timerInterval);
+          if (room.turnTimer) clearTimeout(room.turnTimer);
           rooms.delete(roomId);
         } else {
           io.to(roomId).emit('player_left', { players: room.players });
+          if (room.gameStarted) updateAllPlayers(roomId);
         }
         break;
       }
