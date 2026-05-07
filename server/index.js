@@ -70,8 +70,9 @@ const rooms = new Map();
 // ── Point values ──────────────────────────────────────────────────────────────
 const cardPoints = (card) => {
   if (card.value === 'wild' || card.value === 'wild4') return 50;
+  if (card.value === 'wildShuffle' || card.value === 'wildCustom') return 40;
   if (['skip', 'reverse', 'draw2'].includes(card.value)) return 20;
-  return parseInt(card.value, 10) || 0;  // number cards = face value
+  return parseInt(card.value, 10) || 0;
 };
 
 const calculateHandPoints = (hand) =>
@@ -127,7 +128,7 @@ io.on('connection', (socket) => {
   socket.on('create_room', ({ playerName }) => {
     const roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
     const player = { id: socket.id, name: playerName, host: true };
-    rooms.set(roomId, { players: [player], gameStarted: false });
+    rooms.set(roomId, { players: [player], gameStarted: false, scores: { [socket.id]: 0 } });
     socket.join(roomId);
     socket.emit('room_created', { roomId, players: [player] });
   });
@@ -136,7 +137,7 @@ io.on('connection', (socket) => {
     const roomId = "SOLO-" + Math.random().toString(36).substring(2, 6).toUpperCase();
     const player = { id: socket.id, name: playerName, host: true };
     const bot = { id: 'bot-1', name: 'Bot-1', host: false, isBot: true };
-    rooms.set(roomId, { players: [player, bot], gameStarted: false, isSolo: true });
+    rooms.set(roomId, { players: [player, bot], gameStarted: false, isSolo: true, scores: { [socket.id]: 0, 'bot-1': 0 } });
     socket.join(roomId);
     socket.emit('room_created', { roomId, players: [player, bot] });
   });
@@ -149,6 +150,7 @@ io.on('connection', (socket) => {
 
     const player = { id: socket.id, name: playerName, host: false };
     room.players.push(player);
+    room.scores[socket.id] = 0;
     socket.join(roomId);
     socket.emit('joined_room', { roomId, players: room.players });
     socket.to(roomId).emit('player_joined', { players: room.players });
@@ -160,17 +162,31 @@ io.on('connection', (socket) => {
 
     const deck = createDeck();
     const { hands, remainingDeck } = dealCards(deck, room.players);
-    let topCardIndex = remainingDeck.findIndex(c => c.value !== 'wild4');
-    const topCard = remainingDeck.splice(topCardIndex, 1)[0];
     
-    // Initial Action Handling
+    let topCard;
+    while (true) {
+      topCard = remainingDeck.shift();
+      if (topCard.value === 'wild4') {
+        remainingDeck.push(topCard);
+        shuffle(remainingDeck);
+      } else {
+        break;
+      }
+    }
+    
     let initialIndex = 0;
     let initialDirection = 1;
     let initialPending = 0;
 
-    if (topCard.value === 'skip') initialIndex = 1;
-    if (topCard.value === 'reverse') { initialDirection = -1; initialIndex = room.players.length - 1; }
-    if (topCard.value === 'draw2') { initialPending = 2; }
+    if (topCard.value === 'skip') {
+      initialIndex = 1; // Player to left of dealer is skipped
+    } else if (topCard.value === 'reverse') {
+      initialDirection = -1;
+      initialIndex = 0; // Dealer goes first, then play moves right
+    } else if (topCard.value === 'draw2') {
+      initialPending = 2;
+      initialIndex = 0; // Player to left of dealer draws 2 and misses turn
+    }
 
     room.gameState = {
       deck: remainingDeck,
@@ -204,13 +220,15 @@ io.on('connection', (socket) => {
     const card = playerHand[cardIndex];
 
     // Official Rules: No Stacking.
-    // Stacking Rules
     if (gameState.pendingDraws > 0) {
-      const isStackingDraw2 = card.value === 'draw2' && gameState.topCard.value === 'draw2';
-      const isStackingWild4 = card.value === 'wild4' && gameState.topCard.value === 'wild4';
-      
-      if (!isStackingDraw2 && !isStackingWild4) {
-        return socket.emit('error', `You must draw ${gameState.pendingDraws} cards or stack a similar card!`);
+      return socket.emit('error', `You must draw ${gameState.pendingDraws} cards!`);
+    }
+
+    // Official Rules: Wild Draw Four Restriction
+    if (card.value === 'wild4') {
+      const hasMatchingColor = playerHand.some(c => c.color === gameState.topCard.color && c.color !== 'any');
+      if (hasMatchingColor) {
+        return socket.emit('error', 'You cannot play Wild Draw Four if you have a matching color in your hand!');
       }
     }
 
@@ -227,8 +245,40 @@ io.on('connection', (socket) => {
       if (playerHand.length === 0) {
         clearTimeout(room.timer);
         clearInterval(room.timerInterval);
-        io.to(roomId).emit('game_over', { winner: room.players.find(p => p.id === socket.id).name });
-        room.gameStarted = false;
+        
+        // Scoring
+        const roundWinner = room.players.find(p => p.id === socket.id);
+        let roundPoints = 0;
+        room.players.forEach(p => {
+          if (p.id !== socket.id) {
+            roundPoints += calculateHandPoints(gameState.hands[p.id]);
+          }
+        });
+        room.scores[socket.id] += roundPoints;
+
+        const totalScores = room.players.map(p => ({
+          name: p.name,
+          points: room.scores[p.id]
+        })).sort((a, b) => b.points - a.points);
+
+        const gameWinner = totalScores.find(s => s.points >= 500);
+        
+        if (gameWinner) {
+          io.to(roomId).emit('game_over', { 
+            winner: gameWinner.name, 
+            final: true, 
+            scores: totalScores 
+          });
+          room.gameStarted = false;
+        } else {
+          io.to(roomId).emit('round_over', { 
+            winner: roundWinner.name, 
+            points: roundPoints, 
+            scores: totalScores 
+          });
+          room.gameStarted = false;
+          // Optionally auto-start next round or wait for host
+        }
         return;
       }
 
@@ -307,17 +357,30 @@ io.on('connection', (socket) => {
   function handleSpecialEffects(room, card) {
     const gameState = room.gameState;
     let skipNext = card.value === 'skip';
+    
     if (card.value === 'reverse') {
       if (room.players.length === 2) skipNext = true;
       else gameState.direction *= -1;
     }
     
-    // Official Rules: Draw and Skip
     if (card.value === 'draw2' || card.value === 'wild4') {
-      const penalty = card.value === 'draw2' ? 2 : 4;
-      gameState.pendingDraws += penalty; // Stack the penalty
-      
-      // Advance to the player who must draw or stack
+      gameState.pendingDraws = card.value === 'draw2' ? 2 : 4;
+      gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
+    } else if (card.value === 'wildShuffle') {
+      // Collect all cards
+      let allCards = [];
+      room.players.forEach(p => {
+        allCards.push(...gameState.hands[p.id]);
+        gameState.hands[p.id] = [];
+      });
+      shuffle(allCards);
+      // Redistribute
+      let pIdx = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
+      while (allCards.length > 0) {
+        gameState.hands[room.players[pIdx].id].push(allCards.shift());
+        pIdx = (pIdx + gameState.direction + room.players.length) % room.players.length;
+      }
+      // Continue turn advancement
       gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
     } else {
       // Normal turn advancement
@@ -350,22 +413,16 @@ io.on('connection', (socket) => {
     const playerId = room.players[gameState.currentPlayerIndex].id;
     const hand = gameState.hands[playerId];
 
-    const validCardIndex = hand.findIndex(c => {
-      if (gameState.pendingDraws > 0) {
-        return (c.value === 'draw2' && gameState.topCard.value === 'draw2') || 
-               (c.value === 'wild4' && gameState.topCard.value === 'wild4');
-      }
-      return isValidMove(c, gameState.topCard);
-    });
+    const validCardIndex = hand.findIndex(c => isValidMove(c, gameState.topCard));
     
-    if (validCardIndex !== -1) {
+    if (validCardIndex !== -1 && gameState.pendingDraws === 0) {
       const card = hand.splice(validCardIndex, 1)[0];
-      if (card.type === 'wild' || card.value === 'wild4') card.color = ['red','blue','green','yellow'][Math.floor(Math.random()*4)];
+      if (card.type === 'wild') card.color = ['red','blue','green','yellow'][Math.floor(Math.random()*4)];
       gameState.topCard = card;
       gameState.playedCards.push(card);
       handleSpecialEffects(room, card);
     } else {
-      // 2. If no valid card, draw
+      // If no valid card or penalty active, draw
       if (gameState.pendingDraws > 0) {
         for (let i = 0; i < gameState.pendingDraws; i++) drawCardForPlayer(room, playerId);
         gameState.pendingDraws = 0;
@@ -397,23 +454,12 @@ io.on('connection', (socket) => {
     const botId = room.players[gameState.currentPlayerIndex].id;
     const botHand = gameState.hands[botId];
 
-    let cardToPlay = botHand.find(card => {
-      if (gameState.pendingDraws > 0) {
-        return (card.value === 'draw2' && gameState.topCard.value === 'draw2') || 
-               (card.value === 'wild4' && gameState.topCard.value === 'wild4');
-      }
-      return isValidMove(card, gameState.topCard);
-    });
+    let cardToPlay = botHand.find(card => isValidMove(card, gameState.topCard));
 
-    if (!cardToPlay && gameState.pendingDraws === 0) {
-      const drawn = drawCardForPlayer(room, botId);
-      if (isValidMove(drawn, gameState.topCard)) cardToPlay = drawn;
-    }
-
-    if (cardToPlay) {
+    if (cardToPlay && gameState.pendingDraws === 0) {
       const cardIndex = botHand.findIndex(c => c.id === cardToPlay.id);
       botHand.splice(cardIndex, 1);
-      if (cardToPlay.type === 'wild' || cardToPlay.value === 'wild4') {
+      if (cardToPlay.type === 'wild') {
         const counts = { red: 0, blue: 0, green: 0, yellow: 0 };
         botHand.forEach(c => { if (counts[c.color] !== undefined) counts[c.color]++; });
         cardToPlay.color = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
@@ -438,6 +484,15 @@ io.on('connection', (socket) => {
       }
 
     } else {
+      if (gameState.pendingDraws > 0) {
+        for (let i = 0; i < gameState.pendingDraws; i++) drawCardForPlayer(room, botId);
+        gameState.pendingDraws = 0;
+      } else {
+        const drawn = drawCardForPlayer(room, botId);
+        if (isValidMove(drawn, gameState.topCard)) {
+           // play it? for now just end turn
+        }
+      }
       gameState.currentPlayerIndex = (gameState.currentPlayerIndex + gameState.direction + room.players.length) % room.players.length;
     }
 

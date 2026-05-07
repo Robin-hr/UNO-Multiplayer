@@ -18,6 +18,8 @@ const Card = ({ card, onClick, isBack, disabled, style, ...motionProps }) => {
     if (value === 'reverse') return '⇄';
     if (value === 'draw2') return '+2';
     if (value === 'wild4') return '+4';
+    if (value === 'wildShuffle') return 'S';
+    if (value === 'wildCustom') return 'C';
     if (value === 'wild') return 'W';
     return value;
   };

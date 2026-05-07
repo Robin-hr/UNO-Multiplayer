@@ -2,9 +2,10 @@
 
 export const createDeck = () => {
   const colors = ['red', 'blue', 'green', 'yellow'];
+  // 19 cards each color: one 0, two of each 1-9
   const numbers = [0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9];
+  // 8 each of Skip, Reverse, Draw Two (2 each color)
   const specials = ['skip', 'skip', 'reverse', 'reverse', 'draw2', 'draw2'];
-  const wildCards = ['wild', 'wild', 'wild', 'wild', 'wild4', 'wild4', 'wild4', 'wild4'];
   
   let deck = [];
 
@@ -18,11 +19,20 @@ export const createDeck = () => {
     });
   });
 
-  // Add wild cards
-  const wildTypes = ['wild', 'wild', 'wild4', 'wild4'];
-  wildTypes.forEach(wild => {
-    deck.push({ color: 'any', value: wild, type: 'wild', id: Math.random().toString(36).substr(2, 9) });
-  });
+  // 4 Wild cards
+  for (let i = 0; i < 4; i++) {
+    deck.push({ color: 'any', value: 'wild', type: 'wild', id: Math.random().toString(36).substr(2, 9) });
+  }
+  // 4 Wild Draw Four cards
+  for (let i = 0; i < 4; i++) {
+    deck.push({ color: 'any', value: 'wild4', type: 'wild', id: Math.random().toString(36).substr(2, 9) });
+  }
+  // 1 Wild Shuffle Hands card
+  deck.push({ color: 'any', value: 'wildShuffle', type: 'wild', id: Math.random().toString(36).substr(2, 9) });
+  // 3 Wild Customizable cards
+  for (let i = 0; i < 3; i++) {
+    deck.push({ color: 'any', value: 'wildCustom', type: 'wild', id: Math.random().toString(36).substr(2, 9) });
+  }
 
   return shuffle(deck);
 };
@@ -45,8 +55,9 @@ export const dealCards = (deck, players) => {
 };
 
 export const isValidMove = (card, topCard) => {
-  // Wild cards (Wild and Wild +4) can be played on anything
-  if (card.value === 'wild' || card.value === 'wild4') return true;
+  // Wild cards can be played on anything
+  const wildTypes = ['wild', 'wild4', 'wildShuffle', 'wildCustom'];
+  if (wildTypes.includes(card.value)) return true;
   
   // If top card is wild and hasn't had a color picked (e.g. first card of game)
   if (topCard.color === 'any') return true;

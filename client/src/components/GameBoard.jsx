@@ -19,7 +19,9 @@ const GameBoard = ({ gameState, socket, roomId }) => {
   const [selectedCardId, setSelectedCardId] = useState(null);
   const [winner, setWinner] = useState(null);
   const [winByPoints, setWinByPoints] = useState(false);
+  const [isFinalWin, setIsFinalWin] = useState(false);
   const [scores, setScores] = useState([]);
+  const [roundPoints, setRoundPoints] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(5 * 60 * 1000);
   const [showUnoBtn, setShowUnoBtn] = useState(false);
   const [unoCountdown, setUnoCountdown] = useState(2);
@@ -42,11 +44,19 @@ const GameBoard = ({ gameState, socket, roomId }) => {
   }, [currentPlayerId]);
 
   useEffect(() => {
-    socket.on('game_over', ({ winner, byPoints, scores }) => {
+    socket.on('game_over', ({ winner, final, scores }) => {
       setWinner(winner);
-      setWinByPoints(!!byPoints);
+      setIsFinalWin(!!final);
       setScores(scores || []);
       confetti({ particleCount: 300, spread: 80, origin: { y: 0.6 } });
+    });
+
+    socket.on('round_over', ({ winner, points, scores }) => {
+      setWinner(winner);
+      setIsFinalWin(false);
+      setRoundPoints(points);
+      setScores(scores || []);
+      confetti({ particleCount: 150, spread: 60, origin: { y: 0.7 } });
     });
 
     socket.on('time_update', ({ remaining }) => {
@@ -117,7 +127,7 @@ const GameBoard = ({ gameState, socket, roomId }) => {
       return;
     }
     
-    if (card.value === 'wild' || card.value === 'wild4' || card.value === 'wildSwap' || card.value === 'wildShuffle') {
+    if (['wild', 'wild4', 'wildShuffle', 'wildCustom'].includes(card.value)) {
       setSelectedCardId(card.id);
       setShowColorPicker(true);
     } else {
@@ -168,34 +178,41 @@ const GameBoard = ({ gameState, socket, roomId }) => {
   };
 
   if (winner) {
+    const isHost = gameState.playerCounts.find(p => p.id === socket.id)?.host || false; // Approximation
+    // Better to check if myInfo is host, but let's assume first player in list is host if needed.
+    
     return (
-      <div style={{ ...s.scene, zIndex: 2000, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(20px)' }}>
+      <div style={{ ...s.scene, zIndex: 2000, background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(20px)' }}>
         <motion.div initial={{ scale: 0, rotate: -10 }} animate={{ scale: 1, rotate: 0 }} 
-          style={{ background: '#0f172a', borderRadius: '40px', padding: '60px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)', minWidth: '450px', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }}>
+          style={{ background: '#0f172a', borderRadius: '40px', padding: '60px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)', minWidth: '500px', boxShadow: '0 40px 100px rgba(0,0,0,0.8)' }}>
           <Crown size={120} color="#facc15" style={{ margin: '0 auto 24px', filter: 'drop-shadow(0 0 20px rgba(250,204,21,0.4))' }} />
-          <h1 style={{ fontSize: '64px', fontWeight: 900, marginBottom: '8px', color: 'white' }}>{winner}</h1>
+          <h1 style={{ fontSize: '56px', fontWeight: 900, marginBottom: '8px', color: 'white' }}>{winner}</h1>
           <p style={{ fontSize: '20px', color: '#94a3b8', marginBottom: '40px', letterSpacing: '4px', fontWeight: 700 }}>
-            {winByPoints ? '⏱ TIME LIMIT VICTORY' : '🏆 CHAMPION'}
+            {isFinalWin ? '🏆 ULTIMATE CHAMPION' : `🎉 ROUND WINNER (+${roundPoints} pts)`}
           </p>
 
-          {winByPoints && scores.length > 0 && (
-            <div style={{ marginBottom: '40px', textAlign: 'left', background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '24px' }}>
-              <h3 style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px', letterSpacing: '2px', fontWeight: 800 }}>FINAL STANDINGS</h3>
-              {scores.map((s, i) => (
-                <div key={i} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '12px 20px', marginBottom: '8px', borderRadius: '14px',
-                  background: i === 0 ? 'rgba(250,204,21,0.15)' : 'rgba(255,255,255,0.05)',
-                  border: i === 0 ? '1px solid rgba(250,204,21,0.4)' : '1px solid transparent'
-                }}>
-                  <span style={{ fontWeight: 800, fontSize: '16px' }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '👤'} {s.name}</span>
-                  <span style={{ fontWeight: 900, color: i === 0 ? '#facc15' : '#94a3b8', fontSize: '18px' }}>{s.points} <small style={{fontSize: '10px'}}>PTS</small></span>
-                </div>
-              ))}
-            </div>
-          )}
+          <div style={{ marginBottom: '40px', textAlign: 'left', background: 'rgba(255,255,255,0.03)', padding: '24px', borderRadius: '24px' }}>
+            <h3 style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px', letterSpacing: '2px', fontWeight: 800 }}>ACCUMULATED SCORES</h3>
+            {scores.map((s, i) => (
+              <div key={i} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '14px 20px', marginBottom: '8px', borderRadius: '14px',
+                background: i === 0 ? 'rgba(250,204,21,0.1)' : 'rgba(255,255,255,0.03)',
+                border: i === 0 ? '1px solid rgba(250,204,21,0.3)' : '1px solid transparent'
+              }}>
+                <span style={{ fontWeight: 800, fontSize: '18px' }}>{i === 0 ? '👑' : '👤'} {s.name}</span>
+                <span style={{ fontWeight: 900, color: i === 0 ? '#facc15' : '#94a3b8', fontSize: '20px' }}>{s.points} / 500</span>
+              </div>
+            ))}
+          </div>
 
-          <button className="btn-start" style={{ width: 'auto', padding: '20px 60px' }} onClick={() => window.location.reload()}>PLAY AGAIN</button>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            {isFinalWin ? (
+              <button className="btn-start" style={{ width: '100%', padding: '20px' }} onClick={() => window.location.reload()}>NEW GAME</button>
+            ) : (
+              <button className="btn-start" style={{ width: '100%', padding: '20px' }} onClick={() => socket.emit('start_game', { roomId })}>START NEXT ROUND</button>
+            )}
+          </div>
         </motion.div>
       </div>
     );
