@@ -236,9 +236,15 @@ export default function App() {
 
               {error && <div style={{ ...s.error, marginBottom: 14 }}>⚠️ {error}</div>}
 
-              <button style={s.btnStart} onClick={handleStart}>
-                <Play size={22} fill="white" /> Start Game
-              </button>
+              {roomData.players.find(p => p.id === socket.id)?.host ? (
+                <button style={s.btnStart} onClick={handleStart}>
+                  <Play size={22} fill="white" /> Start Game
+                </button>
+              ) : (
+                <div style={{ ...s.btnStart, background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.3)', cursor: 'default', boxShadow: 'none' }}>
+                  <Timer size={22} /> Waiting for host...
+                </div>
+              )}
             </div>
           </motion.div>
         </motion.div>
