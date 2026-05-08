@@ -194,6 +194,45 @@ const GameBoard = ({ gameState, socket, roomId }) => {
     setSelectedCardId(null);
   };
 
+  const [teases, setTeases] = useState({});
+  const [floatingEmojis, setFloatingEmojis] = useState([]);
+  const [showTeaseMenu, setShowTeaseMenu] = useState(false);
+
+  const EMOJIS = ['🤡', '😂', '😈', '🤫', '🥱', '💀', '🎉', '😬'];
+
+  useEffect(() => {
+    socket.on('player_tease', ({ playerId, tease }) => {
+      // Add to speech bubbles
+      setTeases(prev => ({
+        ...prev,
+        [playerId]: { text: tease, id: Date.now() }
+      }));
+      
+      // Auto-remove bubble after 3s
+      setTimeout(() => {
+        setTeases(prev => {
+          const newTeases = { ...prev };
+          if (newTeases[playerId]?.text === tease) delete newTeases[playerId];
+          return newTeases;
+        });
+      }, 3000);
+
+      // Add to floating emojis
+      const newFloating = { id: Date.now() + Math.random(), emoji: tease, playerId };
+      setFloatingEmojis(prev => [...prev, newFloating]);
+      setTimeout(() => {
+        setFloatingEmojis(prev => prev.filter(e => e.id !== newFloating.id));
+      }, 2000);
+    });
+
+    return () => socket.off('player_tease');
+  }, [socket]);
+
+  const sendTease = (emoji) => {
+    socket.emit('send_tease', { roomId, tease: emoji });
+    setShowTeaseMenu(false);
+  };
+
   const s = styles;
 
   if (winner) {
@@ -337,6 +376,33 @@ const GameBoard = ({ gameState, socket, roomId }) => {
 
         return (
           <div key={player.id} style={{ position: 'absolute', transform: `translate(${x}px, ${y}px)`, display: 'flex', alignItems: 'center', gap: '20px', zIndex: 10 }}>
+            {/* Speech Bubble */}
+            <AnimatePresence>
+              {teases[player.id] && (
+                <motion.div 
+                  initial={{ scale: 0, opacity: 0, y: 10 }}
+                  animate={{ scale: 1, opacity: 1, y: -80 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', background: 'white', color: 'black', padding: '8px 12px', borderRadius: '15px', fontWeight: 900, fontSize: '24px', boxShadow: '0 5px 15px rgba(0,0,0,0.3)', zIndex: 100 }}
+                >
+                  {teases[player.id].text}
+                  <div style={{ position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)', borderTop: '10px solid white', borderLeft: '10px solid transparent', borderRight: '10px solid transparent' }} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Floating Emojis */}
+            {floatingEmojis.filter(e => e.playerId === player.id).map(e => (
+              <motion.div
+                key={e.id}
+                initial={{ y: 0, opacity: 1, x: 0 }}
+                animate={{ y: -150, opacity: 0, x: (Math.random() - 0.5) * 100 }}
+                style={{ position: 'absolute', fontSize: '40px', pointerEvents: 'none', zIndex: 1000 }}
+              >
+                {e.emoji}
+              </motion.div>
+            ))}
+
             {isActive && (
               <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} style={{ position: 'absolute', right: '100%', marginRight: '20px', background: '#3b82f6', color: 'white', fontWeight: 900, padding: '6px 14px', borderRadius: '10px', fontSize: '11px', whiteSpace: 'nowrap', boxShadow: '0 0 20px rgba(59,130,246,0.4)' }}>
                 PLAYING <ArrowRight size={12} style={{ marginLeft: 4 }} />
@@ -390,6 +456,66 @@ const GameBoard = ({ gameState, socket, roomId }) => {
 
       <div style={{ position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'flex-end', gap: '30px', zIndex: 1000 }}>
         <div style={{ position: 'relative', textAlign: 'center', flexShrink: 0 }}>
+          {/* Tease Button & Menu */}
+          <div style={{ position: 'absolute', bottom: '110%', right: '-50px', zIndex: 1000 }}>
+             <motion.button 
+               whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+               onClick={() => setShowTeaseMenu(!showTeaseMenu)}
+               style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white' }}
+             >
+               <Star size={20} fill={showTeaseMenu ? "white" : "none"} />
+             </motion.button>
+             
+             <AnimatePresence>
+               {showTeaseMenu && (
+                 <motion.div 
+                   initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                   animate={{ opacity: 1, y: -10, scale: 1 }}
+                   exit={{ opacity: 0, y: 10, scale: 0.8 }}
+                   style={{ position: 'absolute', bottom: '100%', right: 0, background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '12px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', width: '200px' }}
+                 >
+                   {EMOJIS.map(emoji => (
+                     <motion.button 
+                       key={emoji}
+                       whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.8 }}
+                       onClick={() => sendTease(emoji)}
+                       style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', padding: '5px' }}
+                     >
+                       {emoji}
+                     </motion.button>
+                   ))}
+                 </motion.div>
+               )}
+             </AnimatePresence>
+          </div>
+
+          {/* Local Speech Bubble */}
+          <AnimatePresence>
+            {teases[socket.id] && (
+              <motion.div 
+                initial={{ scale: 0, opacity: 0, y: 10 }}
+                animate={{ scale: 1, opacity: 1, y: -100 }}
+                exit={{ scale: 0, opacity: 0 }}
+                style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', background: 'white', color: 'black', padding: '8px 12px', borderRadius: '15px', fontWeight: 900, fontSize: '24px', boxShadow: '0 5px 15px rgba(0,0,0,0.3)', zIndex: 100 }}
+              >
+                {teases[socket.id].text}
+                <div style={{ position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)', borderTop: '10px solid white', borderLeft: '10px solid transparent', borderRight: '10px solid transparent' }} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Local Floating Emojis */}
+          {floatingEmojis.filter(e => e.playerId === socket.id).map(e => (
+            <motion.div
+              key={e.id}
+              initial={{ y: 0, opacity: 1, x: 0 }}
+              animate={{ y: -200, opacity: 0, x: (Math.random() - 0.5) * 150 }}
+              style={{ position: 'absolute', left: '50%', fontSize: '50px', pointerEvents: 'none', zIndex: 1000 }}
+            >
+              {e.emoji}
+            </motion.div>
+          ))}
+
           {isMyTurn && (
             <motion.div
               initial={{ scale: 0, y: 10 }}

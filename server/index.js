@@ -314,6 +314,10 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('send_tease', ({ roomId, tease }) => {
+    io.to(roomId).emit('player_tease', { playerId: socket.id, tease });
+  });
+
   socket.on('draw_card', ({ roomId }) => {
     const room = rooms.get(roomId);
     if (!room || !room.gameStarted) return;
