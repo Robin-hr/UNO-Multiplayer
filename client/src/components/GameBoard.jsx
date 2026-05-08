@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card from './Card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Bot, Crown, ArrowRight, Star, Timer, AlertTriangle } from 'lucide-react';
+import { User, Bot, Crown, ArrowRight, Star, Timer, AlertTriangle, Home, LogOut } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 const COLORS = {
@@ -266,12 +266,22 @@ const GameBoard = ({ gameState, socket, roomId }) => {
           <div style={{ display: 'flex', gap: '16px' }}>
             {isFinalWin ? (
               <button className="btn-start" style={{ width: '100%', padding: '20px' }} onClick={() => window.location.reload()}>NEW GAME</button>
-            ) : isHost ? (
-              <button className="btn-start" style={{ width: '100%', padding: '20px' }} onClick={() => socket.emit('start_game', { roomId })}>START NEXT ROUND</button>
             ) : (
-              <div style={{ width: '100%', padding: '20px', textAlign: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '18px', fontWeight: 800, color: '#94a3b8' }}>
-                WAITING FOR HOST TO START NEXT ROUND...
-              </div>
+              <>
+                {isHost ? (
+                  <button className="btn-start" style={{ flex: 2, padding: '20px' }} onClick={() => socket.emit('start_game', { roomId })}>START NEXT ROUND</button>
+                ) : (
+                  <div style={{ flex: 2, padding: '20px', textAlign: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '18px', fontWeight: 800, color: '#94a3b8' }}>
+                    WAITING FOR HOST...
+                  </div>
+                )}
+                <button 
+                  onClick={() => window.location.reload()}
+                  style={{ flex: 1, padding: '20px', borderRadius: '18px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <LogOut size={20} /> EXIT
+                </button>
+              </>
             )}
           </div>
         </motion.div>
@@ -294,6 +304,22 @@ const GameBoard = ({ gameState, socket, roomId }) => {
   return (
     <div style={s.scene}>
       <div style={s.table} />
+
+      {/* Leave Match Button */}
+      <div style={{ position: 'fixed', top: '30px', left: '30px', zIndex: 500 }}>
+        <motion.button
+          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+          onClick={() => { if(window.confirm('Leave this match?')) window.location.reload(); }}
+          style={{ 
+            background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(10px)', 
+            border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: '16px', 
+            padding: '10px 20px', color: 'white', display: 'flex', alignItems: 'center', 
+            gap: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' 
+          }}
+        >
+          <Home size={18} /> LEAVE
+        </motion.button>
+      </div>
 
       <div style={s.timer}>
         <Timer size={20} color={isLowTime ? '#f87171' : '#94a3b8'} />
@@ -455,39 +481,46 @@ const GameBoard = ({ gameState, socket, roomId }) => {
       })}
 
       <div style={{ position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'flex-end', gap: '30px', zIndex: 1000 }}>
+        {/* Tease Button & Menu Moved to Fixed Bottom-Right */}
+        <div style={{ position: 'fixed', bottom: '30px', right: '40px', zIndex: 5000 }}>
+           <AnimatePresence>
+             {showTeaseMenu && (
+               <motion.div 
+                 initial={{ opacity: 0, y: 20, scale: 0.8 }}
+                 animate={{ opacity: 1, y: -20, scale: 1 }}
+                 exit={{ opacity: 0, y: 20, scale: 0.8 }}
+                 style={{ position: 'absolute', bottom: '100%', right: 0, background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(10px)', border: '1.2px solid rgba(255,255,255,0.15)', borderRadius: '24px', padding: '16px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)', width: '220px', marginBottom: '15px' }}
+               >
+                 {EMOJIS.map(emoji => (
+                   <motion.button 
+                     key={emoji}
+                     whileHover={{ scale: 1.3, rotate: [0, -10, 10, 0] }} whileTap={{ scale: 0.8 }}
+                     onClick={() => sendTease(emoji)}
+                     style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '12px', fontSize: '28px', cursor: 'pointer', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                   >
+                     {emoji}
+                   </motion.button>
+                 ))}
+               </motion.div>
+             )}
+           </AnimatePresence>
+
+           <motion.button 
+             whileHover={{ scale: 1.1, rotate: 5 }} whileTap={{ scale: 0.9 }}
+             onClick={() => setShowTeaseMenu(!showTeaseMenu)}
+             style={{ 
+               background: 'linear-gradient(135deg, #3b82f6, #2563eb)', 
+               border: 'none', borderRadius: '20px', width: '64px', height: '64px', 
+               display: 'flex', alignItems: 'center', justifyContent: 'center', 
+               cursor: 'pointer', boxShadow: '0 10px 25px rgba(37,99,235,0.4)',
+               border: '2px solid rgba(255,255,255,0.2)'
+             }}
+           >
+             <motion.span animate={showTeaseMenu ? { rotate: 180 } : {}} style={{ fontSize: '32px' }}>🤡</motion.span>
+           </motion.button>
+        </div>
+
         <div style={{ position: 'relative', textAlign: 'center', flexShrink: 0 }}>
-          {/* Tease Button & Menu */}
-          <div style={{ position: 'absolute', bottom: '110%', right: '-50px', zIndex: 1000 }}>
-             <motion.button 
-               whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-               onClick={() => setShowTeaseMenu(!showTeaseMenu)}
-               style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white' }}
-             >
-               <Star size={20} fill={showTeaseMenu ? "white" : "none"} />
-             </motion.button>
-             
-             <AnimatePresence>
-               {showTeaseMenu && (
-                 <motion.div 
-                   initial={{ opacity: 0, y: 10, scale: 0.8 }}
-                   animate={{ opacity: 1, y: -10, scale: 1 }}
-                   exit={{ opacity: 0, y: 10, scale: 0.8 }}
-                   style={{ position: 'absolute', bottom: '100%', right: 0, background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '12px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', width: '200px' }}
-                 >
-                   {EMOJIS.map(emoji => (
-                     <motion.button 
-                       key={emoji}
-                       whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.8 }}
-                       onClick={() => sendTease(emoji)}
-                       style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', padding: '5px' }}
-                     >
-                       {emoji}
-                     </motion.button>
-                   ))}
-                 </motion.div>
-               )}
-             </AnimatePresence>
-          </div>
 
           {/* Local Speech Bubble */}
           <AnimatePresence>

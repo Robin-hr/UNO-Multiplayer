@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
-import { Users, Play, LogIn, Plus, Copy, CheckCircle2, User as UserIcon, Bot, Globe } from 'lucide-react';
+import { Users, Play, LogIn, Plus, Copy, CheckCircle2, User as UserIcon, Bot, Globe, LogOut, Timer } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GameBoard from './components/GameBoard';
 import Login from './components/Login';
@@ -245,6 +245,13 @@ export default function App() {
                   <Timer size={22} /> Waiting for host...
                 </div>
               )}
+
+              <button 
+                onClick={() => window.location.reload()}
+                style={{ marginTop: 12, width: '100%', padding: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'rgba(255,255,255,0.4)', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13 }}
+              >
+                <LogOut size={14} /> LEAVE LOBBY
+              </button>
             </div>
           </motion.div>
         </motion.div>
